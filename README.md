@@ -235,6 +235,30 @@ Maintainers
     # ..
     ```
 
+### Update pinned `pseudo` sources
+
+ 1. In `./default.nix`, in the attribute set passed as argument to the
+    `fetchFromGitHub` function, change the `rev` attribute the the new
+    git revision.
+
+ 2. Introduce a slight change to the `sha256` attribute.
+
+ 3. Launch a new build or attempt to enter the nix env again,
+    you will be provided with the proper `sha256` value (value immediatly after
+    `got` from the output of the command):
+
+    ```bash
+    $ nix release
+    # ..
+    hash mismatch in fixed-output derivation # ..:
+    wanted: sha256:10qx9i1y8ddqhbsj9677920wqfgqpjmg2q6zzjm6yrqkf6bbd363
+    got:    sha256:10qx9i1y8ddqhbsj9777920wqfgqpjmg2q6zzjm6yrqkf6bbd363
+    # ..
+    ```
+
+    Note that it is also possible to use the `nix-prefetch-*` tools to retrieve
+    the proper hash but the above is a much simpler mean.
+
 
 Contributing
 ------------

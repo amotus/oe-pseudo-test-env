@@ -1,6 +1,6 @@
 { lib
 , stdenv
-, fetchgit
+, fetchFromGitHub
 , makeWrapper
 , python3
 , sqlite
@@ -25,8 +25,9 @@ stdenv.mkDerivation rec {
   version = "unstable-2021-09-10";
   pname = "oe-pseudo";
 
-  src = fetchgit {
-    url = "https://git.yoctoproject.org/git/pseudo";
+  src = fetchFromGitHub {
+    owner = "amotus";
+    repo = "pseudo";
     # From 'oe-core' branch.
     rev = "b988b0a6b8afd8d459bc9a2528e834f63a3d59b2";
     sha256 = "10qx9i1y8ddqhbsj9777920wqfgqpjmg2q6zzjm6yrqkf6bbd363";

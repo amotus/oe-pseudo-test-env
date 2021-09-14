@@ -33,14 +33,6 @@ class PseudoTimeoutError(PseudoProcessError):
     pass
 
 
-class PseudoClientTimeoutError(PseudoTimeoutError):
-    pass
-
-
-class PseudoServerTimeoutError(PseudoTimeoutError):
-    pass
-
-
 class PseudoCheckError(PseudoError):
     pass
 
@@ -58,11 +50,13 @@ def _mk_pseudo_ignore_paths(
     rootfs_dir: Path
 ) -> str:
     ignore_paths = [
-        "/usr/",
-        "/etc/",
-        "/lib",
-        "/dev/",
-        "/run/",
+        # These seem to be interpreted as ignore
+        # under the rootfs which is wrong.
+        # "/usr/",
+        # "/etc/",
+        # "/lib",
+        # "/dev/",
+        # "/run/",
         str(state_dir)
     ]
 
@@ -84,6 +78,10 @@ def _mk_pseudo_env_d(
 ) -> Mapping[str, str]:
     # Simulate pseudo 'FAKEROOTENV' + 'FAKEROOTBASEENV' env as established
     # by 'poky/meta/conf/bitbake.conf'.
+    #
+    # In case you change something here, think about making the
+    # same change in `./contrib/pseudo-test-env.sh`.
+    #
     if tmp_dir is None:
         raise PseudoContextError(
             "Missing *tmp dir*."
@@ -185,25 +183,14 @@ def _process_pseudo_outcome(
         stdout, stderr = process.communicate(None, timeout=timeout_s)
     except CalledProcessError as e:
         raise PseudoProcessError(
-            (
-                "'{}' failed with error code '{}'. "
-                "Process stderr: ''\n{}''"
-            ).format(
-                whole_cmd_w_args_str,
-                e.returncode,
-                e.stderr
-            )
+            f"'{whole_cmd_w_args_str}' failed with error "
+            f"code '{e.returncode}'. Process stderr: ''\n{e.stderr}''"
         ) from e
     except TimeoutExpired as e:
         process.kill()
         process.wait()
-        raise PseudoClientTimeoutError(
-            (
-                "'{}' timeouted after '{}' seconds."
-            ).format(
-                whole_cmd_w_args_str,
-                e.timeout
-            )
+        raise PseudoTimeoutError(
+            f"'{whole_cmd_w_args_str}' timeouted after '{e.timeout}' seconds."
         ) from e
     except:  # Including KeyboardInterrupt, communicate handled that.
         process.kill()
@@ -212,30 +199,24 @@ def _process_pseudo_outcome(
 
     retcode = process.poll()
     if check_return_code_in is not None and retcode not in check_return_code_in:
-        LOGGER.warning(f"retcode: {retcode}")
-        raise CalledProcessError(retcode, process.args,
-                                 output=stdout, stderr=stderr)
-
-    whole_cmd_w_args_str = " ".join(process.args)
+        check_return_code_in_str = ", ".join(str(ec) for ec in check_return_code_in)
+        raise PseudoProcessError(
+            f"'{whole_cmd_w_args_str}' failed with unexpected error "
+            f"code '{retcode}'. Expected one of the following error "
+            f"code: {{{check_return_code_in_str}}}. "
+            f"Process stderr: ''\n{stderr}''"
+        )
 
     if check_for_empty_stderr and stderr:
         raise PseudoNonEmptyStdErrError(
-            (
-                "'{}' with unexpected non empty stderr of: ''\n{}''"
-            ).format(
-                whole_cmd_w_args_str,
-                stderr
-            )
+            f"'{whole_cmd_w_args_str}' with unexpected non "
+            f"empty stderr of: ''\n{stderr}''"
         )
 
     if check_for_empty_stdout and stdout:
         raise PseudoNonEmptyStdOutError(
-            (
-                "'{}' with unexpected non empty stdout of: ''\n{}''"
-            ).format(
-                whole_cmd_w_args_str,
-                stdout
-            )
+            f"'{whole_cmd_w_args_str}' with unexpected non empty "
+            f"stdout of: ''\n{stdout}''"
         )
 
     return CompletedProcess(process.args, retcode, stdout, stderr)
@@ -303,7 +284,6 @@ def run_pseudo(
         def run_server() -> CompletedProcess:
             return _process_pseudo_outcome(
                 server_process,
-                # check_return_code_in=[0],
                 check_return_code_in=[0, -15],
                 check_for_empty_stderr=check_for_server_empty_stderr,
                 check_for_empty_stdout=check_for_server_empty_stdout,

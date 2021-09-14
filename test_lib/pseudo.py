@@ -45,6 +45,7 @@ class PseudoNonEmptyStdErrError(PseudoCheckError):
 
 
 def _mk_pseudo_ignore_paths(
+    cmd_tmp_dir: Path,
     state_dir: Path,
     rootfs_dir: Path
 ) -> str:
@@ -57,6 +58,7 @@ def _mk_pseudo_ignore_paths(
         # is under `/run`. We Clearly do not want
         # to ignore our work dir.
         # "/run/",
+        str(cmd_tmp_dir),
         str(state_dir)
     ]
 
@@ -81,13 +83,16 @@ def _mk_pseudo_env_d(
             "Missing *tmp dir*."
         )
 
+    cmd_tmp_dir = tmp_dir.joinpath("pseudo-test-tmp")
+    cmd_tmp_dir.mkdir(parents=True, exist_ok=True)
+
     if state_dir is None:
-        state_dir = tmp_dir.joinpath("pseudo_state")
-        state_dir.mkdir(parents=True)
+        state_dir = tmp_dir.joinpath("pseudo-test-state")
+        state_dir.mkdir(parents=True, exist_ok=True)
 
     if rootfs_dir is None:
-        rootfs_dir = tmp_dir.joinpath("pseudo_rootfs")
-        rootfs_dir.mkdir(parents=True)
+        rootfs_dir = tmp_dir.joinpath("pseudo-test-rootfs")
+        rootfs_dir.mkdir(parents=True, exist_ok=True)
 
     found_cmd = shutil.which(pseudo_cmd)
     if found_cmd is None:
@@ -100,7 +105,10 @@ def _mk_pseudo_env_d(
     lib_dir = prefix_dir.joinpath("lib/pseudo/lib")
 
     ignore_paths = _mk_pseudo_ignore_paths(
-        state_dir=state_dir, rootfs_dir=rootfs_dir)
+        cmd_tmp_dir=cmd_tmp_dir,
+        state_dir=state_dir,
+        rootfs_dir=rootfs_dir
+    )
 
     return {
         "PSEUDO_BINDIR": str(bin_dir),
@@ -118,12 +126,13 @@ def _mk_pseudo_env_d(
         # Intended for our test case scripts.
         #
         "IMAGE_ROOTFS": str(rootfs_dir),
-        # We capture the provided test temp dir.
-        "TMP": str(tmp_dir),
-        "TEMP": str(tmp_dir),
-        "TEMPDIR": str(tmp_dir),
-        "TMPDIR": str(tmp_dir),
-        "XDG_RUNTIME_DIR": str(tmp_dir),
+        # We make sure we capture whatever write to temp dir
+        # the command run under pseudo performs.
+        "TMP": str(cmd_tmp_dir),
+        "TEMP": str(cmd_tmp_dir),
+        "TEMPDIR": str(cmd_tmp_dir),
+        "TMPDIR": str(cmd_tmp_dir),
+        "XDG_RUNTIME_DIR": str(cmd_tmp_dir),
     }
 
 

@@ -85,4 +85,3 @@ def iter_pseudo_files_db_rows(
             for row in cur.execute(
                     "SELECT * FROM files ORDER BY id"):
                 yield _parse_files_db_row(row)
-

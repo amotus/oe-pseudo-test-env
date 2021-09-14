@@ -1,6 +1,6 @@
 MKF_CWD := $(shell pwd)
 
-.PHONY: all clean release typechecks tests lint lint-shell
+.PHONY: all clean release typechecks tests lint lint-shell lint-python
 
 all: typechecks tests lint release
 
@@ -8,16 +8,21 @@ clean:
 	rm -f ./result*
 
 typechecks:
-	mypy . $(shell find ./tests -name "test_*.py")
+	# mypy . $(shell find ./tests -name "test_*.py")
+	mypy .
 
 tests:
 	pytest
 
-lint: lint-shell
+lint: lint-python lint-shell
 
 lint-shell:
-	shellcheck -x -P \
-	  $(shell find ./bin -mindepth 1 -executable -type f)
+	@shellcheck -x -P \
+	  ./contrib/pseudo-test-env.sh \
+	  $(shell find ./test_lib/data/cmd_cases -mindepth 1 -executable -type f)
+
+lint-python:
+	@flake8
 
 release:
 	nix-build release.nix -A default

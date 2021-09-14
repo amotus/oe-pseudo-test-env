@@ -5,10 +5,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from contextlib import contextmanager
 from subprocess import (PIPE, CalledProcessError, CompletedProcess,
-                        TimeoutExpired, run, Popen)
-from typing import Mapping, Optional, ContextManager, Iterable
+                        TimeoutExpired, Popen)
+from typing import Mapping, Optional, Iterator, Iterable
 from concurrent.futures import ThreadPoolExecutor
-from time import sleep
 
 LOGGER = logging.getLogger(__name__)
 
@@ -60,12 +59,6 @@ def _mk_pseudo_ignore_paths(
         str(state_dir)
     ]
 
-    # TODO: See if these should be added as well:
-    # ignore_paths = "${T},${WORKDIR}/recipe-sysroot,${STAMPS_DIR}"
-    # ignore_paths += ",${TMPDIR}/sstate-control,${TMPDIR}/buildstats,${TMPDIR}/sysroots-components,${TMPDIR}/pkgdata"
-    # ignore_paths += ",${WORKDIR}/deploy-,${WORKDIR}/sstate-build-package_,${WORKDIR}/sstate-install-package_,${WORKDIR}/pkgdata-sysroot"
-    # ignore_paths += ",${DEPLOY_DIR},${BUILDHISTORY_DIR},${TOPDIR}/cache,${COREBASE}/scripts,${CCACHE_DIR}"
-
     return ",".join(ignore_paths)
 
 
@@ -95,7 +88,12 @@ def _mk_pseudo_env_d(
         rootfs_dir = tmp_dir.joinpath("pseudo_rootfs")
         rootfs_dir.mkdir(parents=True)
 
-    cmd_path = Path(shutil.which(pseudo_cmd))
+    found_cmd = shutil.which(pseudo_cmd)
+    if found_cmd is None:
+        raise PseudoInstallError(
+            f"Pseudo executable '{pseudo_cmd}' cannot be found.")
+
+    cmd_path = Path(found_cmd)
     bin_dir = cmd_path.parent
     prefix_dir = bin_dir.parent
     lib_dir = prefix_dir.joinpath("lib/pseudo/lib")
@@ -108,11 +106,10 @@ def _mk_pseudo_env_d(
         "PSEUDO_PREFIX": str(prefix_dir),
         "PSEUDO_LIBDIR": str(lib_dir),
         "PSEUDO_IGNORE_PATHS": str(ignore_paths),
-        "PSEUDO_DISABLED": 0 if enabled else 1,
+        "PSEUDO_DISABLED": "0" if enabled else "1",
         "PSEUDO_LOCALSTATEDIR": str(state_dir),
         "PSEUDO_PASSWD": str(rootfs_dir),
         "PSEUDO_NOSYMLINKEXP": "1",
-        "PSEUDO_DISABLED": "0",
         # Not sure relevant.
         # PYTHONDONTWRITEBYTECODE: 1,
         #
@@ -136,7 +133,7 @@ def _popen_pseudo(
         state_dir: Optional[Path],
         rootfs_dir: Optional[Path],
         tmp_dir: Optional[Path]
-) -> ContextManager[Popen]:
+) -> Iterator[Popen]:
     pseudo_cmd = "pseudo"
     fakerootenv_d = _mk_pseudo_env_d(
         pseudo_cmd=pseudo_cmd,
@@ -165,7 +162,8 @@ def _popen_pseudo(
             yield process
     except (FileNotFoundError, PermissionError) as e:
         raise PseudoInstallError(
-            f"Pseudo executable '{pseudo_cmd}' cannot be found.")
+            f"Pseudo executable '{pseudo_cmd}' cannot be found."
+        ) from e
 
 
 def _process_pseudo_outcome(
@@ -178,7 +176,7 @@ def _process_pseudo_outcome(
     if timeout_s is None:
         timeout_s = 3.0
 
-    whole_cmd_w_args_str = " ".join(process.args)
+    whole_cmd_w_args_str = " ".join(str(a) for a in process.args)
     try:
         stdout, stderr = process.communicate(None, timeout=timeout_s)
     except CalledProcessError as e:
@@ -192,14 +190,17 @@ def _process_pseudo_outcome(
         raise PseudoTimeoutError(
             f"'{whole_cmd_w_args_str}' timeouted after '{e.timeout}' seconds."
         ) from e
-    except:  # Including KeyboardInterrupt, communicate handled that.
+    except:  # Including KeyboardInterrupt, communicate handled that.  # noqa
         process.kill()
         # We don't call process.wait() as .__exit__ does that for us.
         raise  # re-rsaise.
 
     retcode = process.poll()
-    if check_return_code_in is not None and retcode not in check_return_code_in:
-        check_return_code_in_str = ", ".join(str(ec) for ec in check_return_code_in)
+    assert retcode is not None
+    if (check_return_code_in is not None
+            and retcode not in check_return_code_in):
+        check_return_code_in_str = ", ".join(
+            str(ec) for ec in check_return_code_in)
         raise PseudoProcessError(
             f"'{whole_cmd_w_args_str}' failed with unexpected error "
             f"code '{retcode}'. Expected one of the following error "
@@ -251,6 +252,7 @@ def run_pseudo_client(
             timeout_s=timeout_s
         )
 
+
 @dataclass
 class PseudoOutcome:
     client: CompletedProcess
@@ -280,7 +282,6 @@ def run_pseudo(
         rootfs_dir=rootfs_dir,
         tmp_dir=tmp_dir,
     ) as server_process:
-        server_whole_cmd_w_args_str = " ".join(server_process.args)
         def run_server() -> CompletedProcess:
             return _process_pseudo_outcome(
                 server_process,
@@ -289,6 +290,7 @@ def run_pseudo(
                 check_for_empty_stdout=check_for_server_empty_stdout,
                 timeout_s=server_timeout_s
             )
+
         tpool = ThreadPoolExecutor(max_workers=1)
         future_server_outcome = tpool.submit(run_server)
         try:

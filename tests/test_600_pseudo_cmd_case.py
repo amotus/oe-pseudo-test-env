@@ -38,7 +38,7 @@ def test_pseudo_cmd_case(
     LOGGER.info(f"rootfs_dir: '{rootfs_dir}'.")
 
     cmd_path = get_data_root_dir().joinpath("cmd_cases", script_rel_filename)
-    compl_proc = run_pseudo(
+    run_pseudo(
         cmd_path,
         enabled=True,
         tmp_dir=tmp_dir,
@@ -51,8 +51,12 @@ def test_pseudo_cmd_case(
     )
 
     rootfs_files = list(_iter_files_under(rootfs_dir))
-    rootfs_files_log_str = "\n".join(f"{{file: {f}, inode: {f.stat().st_ino}}}" for f in rootfs_files)
-    LOGGER.info(f"RootFs contains the following files:\n{rootfs_files_log_str}")
+    rootfs_files_log_str = "\n".join(
+        f"{{file: {f}, inode: {f.stat().st_ino}}}"
+        for f in rootfs_files
+    )
+    LOGGER.info(
+        f"RootFs contains the following files:\n{rootfs_files_log_str}")
 
     file_db_path = state_dir.joinpath("files.db")
     LOGGER.info(f"file_db_path: '{file_db_path}'.")
@@ -73,7 +77,10 @@ def test_pseudo_cmd_case(
         r.ino: r for r in rows
     }
 
-    rows_log_str = "\n".join(f"{{path: {r.path}, ino: {r.ino}, deleting: {r.deleting}}}" for r in rows)
+    rows_log_str = "\n".join(
+        f"{{path: {r.path}, ino: {r.ino}, deleting: {r.deleting}}}"
+        for r in rows
+    )
     LOGGER.info(f"'{file_db_path}' contains:\n{rows_log_str}")
 
     try:

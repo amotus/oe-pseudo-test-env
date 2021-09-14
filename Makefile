@@ -1,18 +1,23 @@
 MKF_CWD := $(shell pwd)
 
-.PHONY: all clean release typechecks tests lint lint-shell lint-python
+.PHONY: \
+  all clean release checks static-checks \
+  typechecks tests lint lint-shell lint-python
 
 all: typechecks tests lint release
 
 clean:
 	rm -f ./result*
 
+checks: static-checks tests
+
+static-checks: typechecks lint
+
 typechecks:
-	# mypy . $(shell find ./tests -name "test_*.py")
-	mypy .
+	@mypy .
 
 tests:
-	pytest
+	@pytest
 
 lint: lint-python lint-shell
 

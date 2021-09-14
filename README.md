@@ -219,6 +219,16 @@ $ make
 Maintainers
 -----------
 
+### Before committing
+
+All checks must pass:
+
+```bash
+$ make check
+# ..
+```
+
+
 ### Adding a new test case
 
  1. Add a new executable shell script under `./test_lib/data/cmd_cases` (e.g.

@@ -7,7 +7,7 @@ MKF_CWD := $(shell pwd)
 all: typechecks tests lint release
 
 clean:
-	rm -f ./result*
+	@rm -f ./result*
 
 checks: static-checks tests
 

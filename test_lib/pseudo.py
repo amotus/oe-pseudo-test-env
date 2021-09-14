@@ -49,12 +49,13 @@ def _mk_pseudo_ignore_paths(
     rootfs_dir: Path
 ) -> str:
     ignore_paths = [
-        # These seem to be interpreted as ignore
-        # under the rootfs which is wrong.
-        # "/usr/",
-        # "/etc/",
-        # "/lib",
-        # "/dev/",
+        "/usr/",
+        "/etc/",
+        "/lib",
+        "/dev/",
+        # Our work dir is in temp dir which itself
+        # is under `/run`. We Clearly do not want
+        # to ignore our work dir.
         # "/run/",
         str(state_dir)
     ]
@@ -105,7 +106,7 @@ def _mk_pseudo_env_d(
         "PSEUDO_BINDIR": str(bin_dir),
         "PSEUDO_PREFIX": str(prefix_dir),
         "PSEUDO_LIBDIR": str(lib_dir),
-        "PSEUDO_IGNORE_PATHS": str(ignore_paths),
+        "PSEUDO_IGNORE_PATHS": ignore_paths,
         "PSEUDO_DISABLED": "0" if enabled else "1",
         "PSEUDO_LOCALSTATEDIR": str(state_dir),
         "PSEUDO_PASSWD": str(rootfs_dir),
@@ -142,6 +143,9 @@ def _popen_pseudo(
         state_dir=state_dir,
         rootfs_dir=rootfs_dir
     )
+
+    val = fakerootenv_d["PSEUDO_IGNORE_PATHS"]
+    LOGGER.info(f"'PSEUDO_IGNORE_PATHS={val}'")
 
     newenv = dict(os.environ)
     newenv.update(fakerootenv_d)

@@ -32,6 +32,7 @@ let
     devPython
     bashInteractive
     sqlite
+    shellcheck
   ];
 
 in

@@ -1,6 +1,7 @@
 import logging
 
 import pytest
+from collections import defaultdict
 from typing import Iterator
 from pathlib import Path
 from _pytest.tmpdir import TempPathFactory
@@ -30,7 +31,9 @@ def _iter_files_under(root_dir: Path) -> Iterator[Path]:
     "750_rename/255_existing_target_twice_alt.sh",
     "750_rename/275_existing_target_contorted.sh",
     "750_rename/500_existing_target_inode_reused.sh",
-    "750_rename/505_existing_target_inode_reused_alt.sh"
+    "750_rename/505_existing_target_inode_reused_alt.sh",
+    "750_rename/650_existing_hardlink_target_mv.sh",
+    "750_rename/655_existing_hardlink_target_cp.sh"
 ])
 def test_pseudo_cmd_case(
         tmp_path_factory: TempPathFactory,
@@ -77,13 +80,13 @@ def test_pseudo_cmd_case(
 
     LOGGER.info(f"len(rows): {len(rows)}")
 
-    rows_by_path = {
-        r.path: r for r in rows
-    }
+    rows_by_path = defaultdict(list)
+    for r in rows:
+        rows_by_path[r.path].append(r)
 
-    rows_by_inode = {
-        r.ino: r for r in rows
-    }
+    rows_by_inode = defaultdict(list)
+    for r in rows:
+        rows_by_inode[r.ino].append(r)
 
     rows_log_str = "\n".join(
         f"{{path: {r.path}, ino: {r.ino}, deleting: {r.deleting}}}"
@@ -95,35 +98,37 @@ def test_pseudo_cmd_case(
         for f in rootfs_files:
             LOGGER.info(f"Performing checks for rootfs file '{f}'.")
             inode = f.stat().st_ino
-            try:
-                f_row = rows_by_path[f]
-            except KeyError as e:
-                raise AssertionError(
-                    f"Missing row for the '{f}' file path."
-                ) from e
+            f_rows = rows_by_path[f]
+            assert f_rows, (
+                f"No matching row for the '{f}' file path.")
 
-            assert inode == f_row.ino, (
-                f"Row for file path {f} has erreneous inode '{f_row.ino}'. "
-                f"Expected inode '{inode}'."
+            f_db_inodes = [r.ino for r in f_rows]
+            f_db_inodes_str = ", ".join(str(x) for x in f_db_inodes)
+
+            assert inode in f_db_inodes, (
+                f"Inode '{inode}' for file path {f} not found in the db. "
+                f"Db only has the following inode(s) for the "
+                f"file: {{{f_db_inodes_str}}}."
             )
 
-            try:
-                inode_row = rows_by_inode[inode]
-            except KeyError as e:
-                raise AssertionError(
-                    f"Missing row for inode '{inode}' obtained via stats "
-                    f"over the real '{f}' file path."
-                ) from e
+            inode_rows = rows_by_inode[inode]
+            assert inode_rows, (
+                f"No matching rows for inode '{inode}' obtained via stats "
+                f"over the real '{f}' file path."
+            )
 
-            assert f == inode_row.path, (
-                f"Row for inode '{inode}' has erroneous file path "
-                f"'{inode_row.path}'. Expected file path '{f}'."
+            inode_db_files = [r.path for r in inode_rows]
+            inode_db_files_str = ", ".join(str(x) for x in inode_db_files)
+
+            assert f in inode_db_files, (
+                f"File path '{f}' for inode '{inode}' not found in the db. "
+                f"Db only has the following file(s) for the "
+                f"inode: {{{inode_db_files_str}}}."
             )
 
     except AssertionError as e:
         raise AssertionError(
             f"Erroneous '{str(file_db_path)}': {e}") from e
-
 
     try:
         for row in rows:

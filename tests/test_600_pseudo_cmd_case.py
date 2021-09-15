@@ -11,6 +11,9 @@ LOGGER = logging.getLogger(__name__)
 
 
 def _iter_files_under(root_dir: Path) -> Iterator[Path]:
+    if not root_dir.exists():
+        return
+
     for file in root_dir.iterdir():
         if file.is_dir():
             yield from _iter_files_under(file)
@@ -20,9 +23,14 @@ def _iter_files_under(root_dir: Path) -> Iterator[Path]:
 
 @pytest.mark.parametrize("script_rel_filename", [
     "250_opencreate/300_two_files.sh",
+    "400_create/400_inode_reuse_after_delete.sh",
     "750_rename/100_no_target.sh",
     "750_rename/200_existing_target.sh",
-    "750_rename/500_existing_target_inode_reused.sh"
+    "750_rename/250_existing_target_twice.sh",
+    "750_rename/255_existing_target_twice_alt.sh",
+    "750_rename/275_existing_target_contorted.sh",
+    "750_rename/500_existing_target_inode_reused.sh",
+    "750_rename/505_existing_target_inode_reused_alt.sh"
 ])
 def test_pseudo_cmd_case(
         tmp_path_factory: TempPathFactory,
@@ -112,6 +120,16 @@ def test_pseudo_cmd_case(
                 f"'{inode_row.path}'. Expected file path '{f}'."
             )
 
+    except AssertionError as e:
+        raise AssertionError(
+            f"Erroneous '{str(file_db_path)}': {e}") from e
+
+
+    try:
+        for row in rows:
+            assert row.path.exists(), (
+                f"Missing file '{row.path}' for row with id '{row.id}'."
+            )
     except AssertionError as e:
         raise AssertionError(
             f"Erroneous '{str(file_db_path)}': {e}") from e

@@ -126,6 +126,11 @@ def test_pseudo_cmd_case(
                 f"inode: {{{inode_db_files_str}}}."
             )
 
+            assert 1 == len(f_db_inodes), (
+                "More than 1 inodes in db for file "
+                f"'{f}': {{{f_db_inodes_str}}}."
+            )
+
     except AssertionError as e:
         raise AssertionError(
             f"Erroneous '{str(file_db_path)}': {e}") from e
